@@ -1612,6 +1612,10 @@ FF_ENABLE_DEPRECATION_WARNINGS
 int ff_qsv_enc_close(AVCodecContext *avctx, QSVEncContext *q)
 {
     QSVFrame *cur;
+#if QSV_VERSION_ATLEAST(1, 26)
+        mfxExtAVCEncodedFrameInfo *enc_info;
+        mfxExtBuffer **enc_buf;
+#endif
 
     if (q->session)
         MFXVideoENCODE_Close(q->session);
@@ -1640,8 +1644,16 @@ int ff_qsv_enc_close(AVCodecContext *avctx, QSVEncContext *q)
         av_fifo_generic_read(q->async_fifo, &sync, sizeof(sync), NULL);
         av_fifo_generic_read(q->async_fifo, &bs,   sizeof(bs),   NULL);
 
-        av_freep(&sync);
+#if QSV_VERSION_ATLEAST(1, 26)
+        if (avctx->codec_id == AV_CODEC_ID_H264) {
+            enc_buf = bs->ExtParam;
+            enc_info = (mfxExtAVCEncodedFrameInfo *)(*bs->ExtParam);
+            av_freep(&enc_info);
+            av_freep(&enc_buf);
+        }
+#endif        
         av_freep(&bs);
+        av_freep(&sync);
         av_packet_unref(&pkt);
     }
     av_fifo_free(q->async_fifo);
